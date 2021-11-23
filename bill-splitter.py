@@ -61,8 +61,8 @@ def get_charging_data(conn, start_date, end_date, home_address):
     return total_charged
 
 
-def init_postgres(args):
-    uri = f'postgres://{args.postgres_username}:{args.postgres_password}@{args.postgres_host}/{args.teslamate_postgres_database}'
+def init_postgres(username, password, host, database):
+    uri = f'postgres://{username}:{password}@{host}/{database}'
     return psycopg.connect(uri)
 
 
@@ -208,18 +208,20 @@ def init_selenium(download_path):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description='Download, parse, and automatically split the utility bill',
+    )
 
-    parser.add_argument('username')
-    parser.add_argument('password')
+    parser.add_argument('username', help='Utility login username')
+    parser.add_argument('password', help='Utility login password')
     parser.add_argument('--debug', default=False, action='store_true')
-    parser.add_argument('--download-path', default=tempfile.mkdtemp())
+    parser.add_argument('--download-path', default=tempfile.mkdtemp(), help='Location where the bill will be downloaded')
     parser.add_argument('--dry-run', default=False, action='store_true')
-    parser.add_argument('--home-address', type=usaddress.tag)
     parser.add_argument('--login-path', default='http://coautilities.com')
     parser.add_argument('--postgres-host')
     parser.add_argument('--postgres-username')
     parser.add_argument('--postgres-password')
+    parser.add_argument('--teslamate-home-address', type=usaddress.tag, help='Location of home charging')
     parser.add_argument('--teslamate-postgres-database', default='teslamate')
     parser.add_argument('--venmo-usernames', nargs='+', metavar='username')
     parser.add_argument('--venmo-access-token')
@@ -234,8 +236,8 @@ def parse_args():
     if args.venmo_split_ways is None:
         args.venmo_split_ways = len(args.venmo_usernames) + 1
 
-    if args.home_address:
-        args.home_address = args.home_address[0]
+    if args.teslamate_home_address:
+        args.teslamate_home_address = args.teslamate_home_address[0]
 
     return args
 
@@ -268,8 +270,19 @@ def main():
     LOG.debug(f'Average per kWh cost is ${per_kwh}')
 
     if all([args.postgres_host, args.postgres_username, args.postgres_password]):
-        with init_postgres(args) as conn:
-            total_charged = get_charging_data(conn, meter_read_start_date, meter_read_end_date, args.home_address)
+        with init_postgres(
+            args.postgres_username,
+            args.postgres_password,
+            args.postgres_host,
+            args.teslamate_postgres_database,
+        ) as conn:
+            total_charged = get_charging_data(
+                conn,
+                meter_read_start_date,
+                meter_read_end_date,
+                args.teslamate_home_address,
+            )
+
             LOG.debug(f'Total charging during meter read window is {total_charged} kWh')
             bill_reduction = round(per_kwh * total_charged, 2)
 
