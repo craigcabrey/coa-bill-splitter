@@ -1,0 +1,4 @@
+selenium
+psycopg
+venmo_api
+usaddress
