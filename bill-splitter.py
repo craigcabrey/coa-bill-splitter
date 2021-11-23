@@ -12,8 +12,8 @@ import time
 
 import psycopg
 import selenium.webdriver
-import selenium.webdriver.common.by
 import selenium.webdriver.chrome.options
+import selenium.webdriver.common.by
 import selenium.webdriver.support.expected_conditions
 import selenium.webdriver.support.ui
 import usaddress
@@ -190,16 +190,26 @@ def init_venmo(access_token, usernames):
     return client, users
 
 
-def init_selenium(download_path):
+def init_selenium(download_path, remote_host):
     options = selenium.webdriver.chrome.options.Options()
     options.add_argument('--headless')
-    options.add_experimental_option('prefs', {
-        'download.default_directory': download_path,
+    experimental_prefs = {
         'download.prompt_for_download': False,
         'download.directory_upgrade': True,
         'plugins.always_open_pdf_externally': True,
-    })
-    driver = selenium.webdriver.Chrome(options=options)
+    }
+
+    if remote_host:
+        options.add_experimental_option('prefs', experimental_prefs)
+        driver = selenium.webdriver.Remote(
+            f'http://{remote_host}:4444/wd/hub',
+            options=options,
+        )
+    else:
+        experimental_prefs['download.default_directory'] = download_path
+        options.add_experimental_option('prefs', experimental_prefs)
+        driver = selenium.webdriver.Chrome(options=options)
+
     driver.implicitly_wait(60)
 
     LOG.info(f'Bill will download to {download_path}')
@@ -215,12 +225,20 @@ def parse_args():
     parser.add_argument('username', help='Utility login username')
     parser.add_argument('password', help='Utility login password')
     parser.add_argument('--debug', default=False, action='store_true')
-    parser.add_argument('--download-path', default=tempfile.mkdtemp(), help='Location where the bill will be downloaded')
+    parser.add_argument(
+        '--download-path',
+        default=tempfile.mkdtemp(),
+        help=(
+            'Location where the bill will be downloaded (has no effect '
+            'if using a remote Selenium instance)'
+        ),
+    )
     parser.add_argument('--dry-run', default=False, action='store_true')
     parser.add_argument('--login-path', default='http://coautilities.com')
     parser.add_argument('--postgres-host')
     parser.add_argument('--postgres-username')
     parser.add_argument('--postgres-password')
+    parser.add_argument('--selenium-remote-host')
     parser.add_argument('--teslamate-home-address', type=usaddress.tag, help='Location of home charging')
     parser.add_argument('--teslamate-postgres-database', default='teslamate')
     parser.add_argument('--venmo-usernames', nargs='+', metavar='username')
@@ -248,7 +266,7 @@ def main():
     if args.debug:
         LOG.setLevel(logging.DEBUG)
 
-    driver = init_selenium(args.download_path)
+    driver = init_selenium(args.download_path, args.selenium_remote_host)
     login(driver, args.login_path, args.username, args.password)
 
     (
