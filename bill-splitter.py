@@ -108,13 +108,15 @@ def parse_bill(driver):
         )
     )
     view_bill_button.click()
-    time.sleep(15)
 
-    view_bill_button = driver.find_element(
-        selenium.webdriver.common.by.By.XPATH,
-        '//*[@id="summary-footer"]/div[1]/div/div[2]/div/button',
+    view_bill_button = selenium.webdriver.support.ui.WebDriverWait(driver, 30).until(
+        selenium.webdriver.support.expected_conditions.presence_of_element_located(
+            (selenium.webdriver.common.by.By.XPATH, '//*[@id="summary-footer"]/div[1]/div/div[2]/div/button'),
+        )
     )
     view_bill_button.click()
+
+    LOG.debug('Triggered download of bill')
 
     total_amount_element = driver.find_element(
         selenium.webdriver.common.by.By.XPATH,
@@ -210,9 +212,9 @@ def init_selenium(download_path, remote_host):
         options.add_experimental_option('prefs', experimental_prefs)
         driver = selenium.webdriver.Chrome(options=options)
 
-    driver.implicitly_wait(60)
+        LOG.info(f'Bill will download to {download_path}')
 
-    LOG.info(f'Bill will download to {download_path}')
+    driver.implicitly_wait(60)
 
     return driver
 
@@ -311,7 +313,10 @@ def main():
     if args.venmo_access_token:
         now = datetime.datetime.now()
 
-        if now <= bill_due_date and (bill_due_date - now).days < args.venmo_due_date_threshold:
+        if args.dry_run or all([
+            now <= bill_due_date,
+            (bill_due_date - now).days < args.venmo_due_date_thresholdk
+        ]):
             LOG.info('Bill due date is within threshold, proceeding with Venmo requests')
 
             venmo, users = init_venmo(args.venmo_access_token, args.venmo_usernames)
