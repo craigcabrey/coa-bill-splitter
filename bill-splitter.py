@@ -202,6 +202,7 @@ def init_selenium(download_path, remote_host):
     }
 
     if remote_host:
+        experimental_prefs['download.default_directory'] = '/home/seluser/files'
         options.add_experimental_option('prefs', experimental_prefs)
         driver = selenium.webdriver.Remote(
             f'http://{remote_host}:4444/wd/hub',
